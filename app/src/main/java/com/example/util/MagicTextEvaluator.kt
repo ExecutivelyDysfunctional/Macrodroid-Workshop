@@ -70,8 +70,66 @@ data class MagicTextItem(
     val label: String,
     val description: String,
     val category: MagicTextCategory,
-    val exampleValue: String? = null
+    val exampleValue: String? = null,
+    val subGroup: String = ""
 )
+
+data class DateTimeBlockPiece(
+    val id: String,
+    val label: String,
+    val tokenValue: String,
+    val isLiteral: Boolean = false,
+    val description: String = ""
+)
+
+object DateTimeBlockLibrary {
+    val datePieces = listOf(
+        DateTimeBlockPiece("date_year", "Year (2026)", "[date_year]", description = "Full 4-digit year"),
+        DateTimeBlockPiece("date_year_short", "Year Short (26)", "[date_year_short]", description = "2-digit shorthand year"),
+        DateTimeBlockPiece("date_month_name", "Month Name (September)", "[date_month_name]", description = "Full month name"),
+        DateTimeBlockPiece("date_month_short", "Month Short (Sep)", "[date_month_short]", description = "Abbreviated month name"),
+        DateTimeBlockPiece("date_month_pad", "Month (01-12)", "[date_month_pad]", description = "2-digit month number"),
+        DateTimeBlockPiece("date_month", "Month (1-12)", "[date_month]", description = "Month number"),
+        DateTimeBlockPiece("date_day_pad", "Day (01-31)", "[date_day_pad]", description = "2-digit day of month"),
+        DateTimeBlockPiece("date_day", "Day (1-31)", "[date_day]", description = "Day of month"),
+        DateTimeBlockPiece("day_of_week", "Day of Week (Sunday)", "[day_of_week]", description = "Full weekday name"),
+        DateTimeBlockPiece("day_of_year", "Day of Year (263)", "[day_of_year]", description = "Ordinal day count of year")
+    )
+
+    val timePieces = listOf(
+        DateTimeBlockPiece("hour_12_pad", "Hour 12h (01-12)", "[hour_12_pad]", description = "2-digit 12-hour format"),
+        DateTimeBlockPiece("hour_12", "Hour 12h (1-12)", "[hour_12]", description = "12-hour format"),
+        DateTimeBlockPiece("hour_24_pad", "Hour 24h (00-23)", "[hour_24_pad]", description = "2-digit 24-hour military format"),
+        DateTimeBlockPiece("hour_24", "Hour 24h (0-23)", "[hour_24]", description = "24-hour format"),
+        DateTimeBlockPiece("minute_pad", "Minute (00-59)", "[minute_pad]", description = "2-digit minute with zero padding"),
+        DateTimeBlockPiece("minute", "Minute (0-59)", "[minute]", description = "Minute without zero padding"),
+        DateTimeBlockPiece("second_pad", "Second (00-59)", "[second_pad]", description = "2-digit second with zero padding"),
+        DateTimeBlockPiece("second", "Second (0-59)", "[second]", description = "Second without zero padding"),
+        DateTimeBlockPiece("am_pm", "AM / PM", "[am_pm]", description = "Upper case AM or PM designation"),
+        DateTimeBlockPiece("system_time", "Unix Timestamp", "[system_time]", description = "Current epoch timestamp in ms")
+    )
+
+    val separatorPieces = listOf(
+        DateTimeBlockPiece("sep_space", "Space ( )", " ", isLiteral = true, description = "Single whitespace separator"),
+        DateTimeBlockPiece("sep_hyphen", "Hyphen (-)", "-", isLiteral = true, description = "Hyphen divider"),
+        DateTimeBlockPiece("sep_slash", "Slash (/)", "/", isLiteral = true, description = "Forward slash date separator"),
+        DateTimeBlockPiece("sep_colon", "Colon (:)", ":", isLiteral = true, description = "Colon time separator"),
+        DateTimeBlockPiece("sep_comma", "Comma (,)", ",", isLiteral = true, description = "Comma separator"),
+        DateTimeBlockPiece("sep_dot", "Dot (.)", ".", isLiteral = true, description = "Period dot separator"),
+        DateTimeBlockPiece("sep_underscore", "Underscore (_)", "_", isLiteral = true, description = "Underscore separator"),
+        DateTimeBlockPiece("sep_at", "Text ' at '", " at ", isLiteral = true, description = "Literal ' at ' string"),
+        DateTimeBlockPiece("sep_t", "Text 'T'", "T", isLiteral = true, description = "ISO 8601 'T' separator")
+    )
+
+    val presetTemplates = listOf(
+        "12h Clock" to "[hour_12]:[minute_pad] [am_pm]",
+        "24h Military" to "[hour_24_pad]:[minute_pad]:[second_pad]",
+        "Friendly Date" to "[date_month_short] [date_day], [date_year]",
+        "ISO 8601" to "[date_year]-[date_month_pad]-[date_day_pad] [hour_24_pad]:[minute_pad]:[second_pad]",
+        "File Stamp" to "[date_year][date_month_pad][date_day_pad]_[hour_24_pad][minute_pad]",
+        "Full Banner" to "[day_of_week], [date_month_name] [date_day], [date_year] at [hour_12]:[minute_pad] [am_pm]"
+    )
+}
 
 data class MagicCombinationItem(
     val name: String,
@@ -88,29 +146,29 @@ object MagicTextEvaluator {
      */
     val allMagicTextTokens: List<MagicTextItem> = listOf(
         // Date & Time
-        MagicTextItem("date_day", "Day of Month (1-31)", "Day of the month without leading zero", MagicTextCategory.DATE_TIME),
-        MagicTextItem("date_day_pad", "Day of Month Padded (01-31)", "Day of the month with two digits", MagicTextCategory.DATE_TIME),
-        MagicTextItem("date_month", "Month Number (1-12)", "Month number without leading zero", MagicTextCategory.DATE_TIME),
-        MagicTextItem("date_month_pad", "Month Padded (01-12)", "Two-digit month number", MagicTextCategory.DATE_TIME),
-        MagicTextItem("date_month_short", "Month Short Name (e.g. Jan)", "Three-letter abbreviated month name", MagicTextCategory.DATE_TIME),
-        MagicTextItem("date_month_name", "Month Full Name (e.g. January)", "Full name of the current month", MagicTextCategory.DATE_TIME),
-        MagicTextItem("date_year", "Four-Digit Year (e.g. 2026)", "Current full calendar year", MagicTextCategory.DATE_TIME),
-        MagicTextItem("date_year_short", "Two-Digit Year (e.g. 26)", "Two-digit shorthand year", MagicTextCategory.DATE_TIME),
-        MagicTextItem("day_of_week", "Day of Week (e.g. Monday)", "Full name of current weekday", MagicTextCategory.DATE_TIME),
-        MagicTextItem("day_of_week_num", "Day of Week Number (1-7)", "Weekday number (1 = Sunday / Monday depending on locale)", MagicTextCategory.DATE_TIME),
-        MagicTextItem("day_of_year", "Day of Year (1-366)", "Ordinal day count of the current year", MagicTextCategory.DATE_TIME),
-        MagicTextItem("hour_24", "Hour 24h (0-23)", "Hour in 24-hour format without leading zero", MagicTextCategory.DATE_TIME),
-        MagicTextItem("hour_24_pad", "Hour 24h Padded (00-23)", "Two-digit hour in 24-hour format", MagicTextCategory.DATE_TIME),
-        MagicTextItem("hour_12", "Hour 12h (1-12)", "Hour in 12-hour clock format without leading zero", MagicTextCategory.DATE_TIME),
-        MagicTextItem("hour_12_pad", "Hour 12h Padded (01-12)", "Two-digit hour in 12-hour clock format", MagicTextCategory.DATE_TIME),
-        MagicTextItem("minute", "Minute (0-59)", "Minute without leading zero", MagicTextCategory.DATE_TIME),
-        MagicTextItem("minute_pad", "Minute Padded (00-59)", "Two-digit minute with leading zero", MagicTextCategory.DATE_TIME),
-        MagicTextItem("second", "Second (0-59)", "Seconds without leading zero", MagicTextCategory.DATE_TIME),
-        MagicTextItem("second_pad", "Second Padded (00-59)", "Two-digit second with leading zero", MagicTextCategory.DATE_TIME),
-        MagicTextItem("am_pm", "AM / PM Marker", "Upper case AM or PM designation", MagicTextCategory.DATE_TIME),
-        MagicTextItem("system_time", "Unix Epoch Time", "Current system timestamp in milliseconds", MagicTextCategory.DATE_TIME),
-        MagicTextItem("stopwatch_time", "Stopwatch Elapsed Time", "Elapsed time on the active MacroDroid stopwatch", MagicTextCategory.DATE_TIME),
-        MagicTextItem("last_macro_run_time", "Last Macro Run Timestamp", "Time when the last macro was executed", MagicTextCategory.DATE_TIME),
+        MagicTextItem("date_day", "Day of Month (1-31)", "Day of the month without leading zero", MagicTextCategory.DATE_TIME, subGroup = "Date & Calendar"),
+        MagicTextItem("date_day_pad", "Day of Month Padded (01-31)", "Day of the month with two digits", MagicTextCategory.DATE_TIME, subGroup = "Date & Calendar"),
+        MagicTextItem("date_month", "Month Number (1-12)", "Month number without leading zero", MagicTextCategory.DATE_TIME, subGroup = "Date & Calendar"),
+        MagicTextItem("date_month_pad", "Month Padded (01-12)", "Two-digit month number", MagicTextCategory.DATE_TIME, subGroup = "Date & Calendar"),
+        MagicTextItem("date_month_short", "Month Short Name (e.g. Jan)", "Three-letter abbreviated month name", MagicTextCategory.DATE_TIME, subGroup = "Date & Calendar"),
+        MagicTextItem("date_month_name", "Month Full Name (e.g. January)", "Full name of the current month", MagicTextCategory.DATE_TIME, subGroup = "Date & Calendar"),
+        MagicTextItem("date_year", "Four-Digit Year (e.g. 2026)", "Current full calendar year", MagicTextCategory.DATE_TIME, subGroup = "Date & Calendar"),
+        MagicTextItem("date_year_short", "Two-Digit Year (e.g. 26)", "Two-digit shorthand year", MagicTextCategory.DATE_TIME, subGroup = "Date & Calendar"),
+        MagicTextItem("day_of_week", "Day of Week (e.g. Monday)", "Full name of current weekday", MagicTextCategory.DATE_TIME, subGroup = "Date & Calendar"),
+        MagicTextItem("day_of_week_num", "Day of Week Number (1-7)", "Weekday number (1 = Sunday / Monday depending on locale)", MagicTextCategory.DATE_TIME, subGroup = "Date & Calendar"),
+        MagicTextItem("day_of_year", "Day of Year (1-366)", "Ordinal day count of the current year", MagicTextCategory.DATE_TIME, subGroup = "Date & Calendar"),
+        MagicTextItem("hour_24", "Hour 24h (0-23)", "Hour in 24-hour format without leading zero", MagicTextCategory.DATE_TIME, subGroup = "Time & Clock"),
+        MagicTextItem("hour_24_pad", "Hour 24h Padded (00-23)", "Two-digit hour in 24-hour format", MagicTextCategory.DATE_TIME, subGroup = "Time & Clock"),
+        MagicTextItem("hour_12", "Hour 12h (1-12)", "Hour in 12-hour clock format without leading zero", MagicTextCategory.DATE_TIME, subGroup = "Time & Clock"),
+        MagicTextItem("hour_12_pad", "Hour 12h Padded (01-12)", "Two-digit hour in 12-hour clock format", MagicTextCategory.DATE_TIME, subGroup = "Time & Clock"),
+        MagicTextItem("minute", "Minute (0-59)", "Minute without leading zero", MagicTextCategory.DATE_TIME, subGroup = "Time & Clock"),
+        MagicTextItem("minute_pad", "Minute Padded (00-59)", "Two-digit minute with leading zero", MagicTextCategory.DATE_TIME, subGroup = "Time & Clock"),
+        MagicTextItem("second", "Second (0-59)", "Seconds without leading zero", MagicTextCategory.DATE_TIME, subGroup = "Time & Clock"),
+        MagicTextItem("second_pad", "Second Padded (00-59)", "Two-digit second with leading zero", MagicTextCategory.DATE_TIME, subGroup = "Time & Clock"),
+        MagicTextItem("am_pm", "AM / PM Marker", "Upper case AM or PM designation", MagicTextCategory.DATE_TIME, subGroup = "Time & Clock"),
+        MagicTextItem("system_time", "Unix Epoch Time", "Current system timestamp in milliseconds", MagicTextCategory.DATE_TIME, subGroup = "System Timestamps"),
+        MagicTextItem("stopwatch_time", "Stopwatch Elapsed Time", "Elapsed time on the active MacroDroid stopwatch", MagicTextCategory.DATE_TIME, subGroup = "System Timestamps"),
+        MagicTextItem("last_macro_run_time", "Last Macro Run Timestamp", "Time when the last macro was executed", MagicTextCategory.DATE_TIME, subGroup = "System Timestamps"),
 
         // Battery & Power
         MagicTextItem("battery", "Battery Level (%)", "Current battery charge percentage (0-100)", MagicTextCategory.BATTERY),

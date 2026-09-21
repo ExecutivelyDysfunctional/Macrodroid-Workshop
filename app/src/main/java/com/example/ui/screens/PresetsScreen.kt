@@ -77,6 +77,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.models.Preset
 import com.example.ui.WorkshopViewModel
+import com.example.ui.components.CustomDateTimeBuilder
 import com.example.ui.components.EmptyStateView
 import com.example.ui.components.SearchBar
 import com.example.ui.components.TagPill
@@ -391,122 +392,262 @@ fun PresetsScreen(
                         verticalArrangement = Arrangement.spacedBy(10.dp),
                         modifier = Modifier.fillMaxSize()
                     ) {
-                        items(filteredTokens, key = { it.token }) { item ->
-                            val formattedToken = bracketStyle.formatToken(item.token)
-                            val (liveSample, isLive) = remember(item.token, bracketStyle) {
-                                MagicTextEvaluator.evaluateLiveSample(item.token, context)
-                            }
-                            val isJustCopied = recentlyCopiedToken == formattedToken
-
-                            // Card Hierarchy:
-                            // 1. Token/macro name — 15sp, medium weight, primary text color
-                            // 2. Category tag — 11sp, muted color, top-right corner, no background pill
-                            // 3. Value chip — inset background, monospace, single copy icon on the right
-                            // 4. Description — 12sp, secondary text color, below the chip
-                            Card(
-                                shape = RoundedCornerShape(8.dp),
-                                colors = CardDefaults.cardColors(containerColor = WorkbenchSurface),
-                                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-                                border = BorderStroke(1.dp, WorkbenchBorder),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable { copyToClipboard(formattedToken, item.label) }
-                                    .testTag("token_card_${item.token}")
-                            ) {
-                                Column(modifier = Modifier.padding(14.dp)) {
-                                    // Row 1: Left = Token Name (15sp medium) + Live Sample; Right = Category Tag (11sp muted, NO background pill)
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            modifier = Modifier.weight(1f, fill = false),
-                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                        ) {
-                                            Text(
-                                                text = "${item.label}:",
-                                                fontSize = 15.sp,
-                                                fontFamily = FontFamily.SansSerif,
-                                                fontWeight = FontWeight.Medium,
-                                                color = WorkbenchTextPrimary
+                        // Display Custom DateTime Builder card at top if DATE_TIME category is selected or searching for datetime
+                        if (selectedTokenCategory == MagicTextCategory.DATE_TIME ||
+                            (selectedTokenCategory == MagicTextCategory.ALL && (searchQuery.contains("date", ignoreCase = true) || searchQuery.contains("time", ignoreCase = true)))
+                        ) {
+                            item {
+                                CustomDateTimeBuilder(
+                                    bracketStyle = bracketStyle,
+                                    onCopyText = { text, label -> copyToClipboard(text, label) },
+                                    onSavePreset = { name, content, tags ->
+                                        viewModel.savePreset(
+                                            Preset(
+                                                name = name,
+                                                content = content,
+                                                tags = tags
                                             )
-                                            Text(
-                                                text = "($liveSample ${if (isLive) "[using live data]" else "[sample]"})",
-                                                fontSize = 13.sp,
-                                                fontFamily = FontFamily.SansSerif,
-                                                fontWeight = FontWeight.Normal,
-                                                color = WorkbenchPrimary,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
-                                        }
-
-                                        // Category Tag: 11sp, muted color, top-right corner, no background pill (just text)
-                                        Text(
-                                            text = item.category.displayName,
-                                            fontSize = 11.sp,
-                                            fontFamily = FontFamily.SansSerif,
-                                            color = WorkbenchTextSecondary,
-                                            modifier = Modifier.padding(start = 8.dp)
                                         )
+                                        Toast.makeText(context, "Saved preset '$name'", Toast.LENGTH_SHORT).show()
                                     }
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                            }
+                        }
 
-                                    Spacer(modifier = Modifier.height(8.dp))
+                        if (selectedTokenCategory == MagicTextCategory.DATE_TIME) {
+                            val groupedTokens = filteredTokens.groupBy { it.subGroup.ifBlank { "Date & Time Tokens" } }
+                            groupedTokens.forEach { (groupTitle, groupTokens) ->
+                                item {
+                                    Text(
+                                        text = groupTitle,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = WorkbenchPrimary,
+                                        modifier = Modifier.padding(top = 8.dp, bottom = 2.dp)
+                                    )
+                                }
 
-                                    // Item 3: Value chip — inset background (#181818), monospace, single copy icon on right (no "Tap to copy" label)
-                                    Surface(
-                                        color = WorkbenchInset,
-                                        shape = RoundedCornerShape(6.dp),
+                                items(groupTokens, key = { it.token }) { item ->
+                                    val formattedToken = bracketStyle.formatToken(item.token)
+                                    val (liveSample, isLive) = remember(item.token, bracketStyle) {
+                                        MagicTextEvaluator.evaluateLiveSample(item.token, context)
+                                    }
+                                    val isJustCopied = recentlyCopiedToken == formattedToken
+
+                                    Card(
+                                        shape = RoundedCornerShape(8.dp),
+                                        colors = CardDefaults.cardColors(containerColor = WorkbenchSurface),
+                                        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
                                         border = BorderStroke(1.dp, WorkbenchBorder),
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .clickable { copyToClipboard(formattedToken, item.label) }
+                                            .testTag("token_card_${item.token}")
                                     ) {
+                                        Column(modifier = Modifier.padding(14.dp)) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    modifier = Modifier.weight(1f, fill = false),
+                                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                                ) {
+                                                    Text(
+                                                        text = "${item.label}:",
+                                                        fontSize = 15.sp,
+                                                        fontFamily = FontFamily.SansSerif,
+                                                        fontWeight = FontWeight.Medium,
+                                                        color = WorkbenchTextPrimary
+                                                    )
+                                                    Text(
+                                                        text = "($liveSample ${if (isLive) "[using live data]" else "[sample]"})",
+                                                        fontSize = 13.sp,
+                                                        fontFamily = FontFamily.SansSerif,
+                                                        fontWeight = FontWeight.Normal,
+                                                        color = WorkbenchPrimary,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis
+                                                    )
+                                                }
+
+                                                Text(
+                                                    text = item.category.displayName,
+                                                    fontSize = 11.sp,
+                                                    fontFamily = FontFamily.SansSerif,
+                                                    color = WorkbenchTextSecondary,
+                                                    modifier = Modifier.padding(start = 8.dp)
+                                                )
+                                            }
+
+                                            Spacer(modifier = Modifier.height(8.dp))
+
+                                            Surface(
+                                                color = WorkbenchInset,
+                                                shape = RoundedCornerShape(6.dp),
+                                                border = BorderStroke(1.dp, WorkbenchBorder),
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .clickable { copyToClipboard(formattedToken, item.label) }
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .padding(horizontal = 10.dp, vertical = 8.dp),
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Text(
+                                                        text = formattedToken,
+                                                        fontFamily = FontFamily.Monospace,
+                                                        fontWeight = FontWeight.Normal,
+                                                        fontSize = 14.sp,
+                                                        color = WorkbenchPrimary,
+                                                        modifier = Modifier.weight(1f)
+                                                    )
+
+                                                    if (isJustCopied) {
+                                                        Icon(
+                                                            imageVector = Icons.Default.Check,
+                                                            contentDescription = "Copied",
+                                                            tint = StatusDeployed,
+                                                            modifier = Modifier.size(16.dp)
+                                                        )
+                                                    } else {
+                                                        Icon(
+                                                            imageVector = Icons.Default.ContentCopy,
+                                                            contentDescription = "Copy",
+                                                            tint = WorkbenchTextSecondary,
+                                                            modifier = Modifier.size(15.dp)
+                                                        )
+                                                    }
+                                                }
+                                            }
+
+                                            Spacer(modifier = Modifier.height(8.dp))
+
+                                            Text(
+                                                text = item.description,
+                                                fontSize = 12.sp,
+                                                fontFamily = FontFamily.SansSerif,
+                                                color = WorkbenchTextSecondary
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        } else {
+                            items(filteredTokens, key = { it.token }) { item ->
+                                val formattedToken = bracketStyle.formatToken(item.token)
+                                val (liveSample, isLive) = remember(item.token, bracketStyle) {
+                                    MagicTextEvaluator.evaluateLiveSample(item.token, context)
+                                }
+                                val isJustCopied = recentlyCopiedToken == formattedToken
+
+                                Card(
+                                    shape = RoundedCornerShape(8.dp),
+                                    colors = CardDefaults.cardColors(containerColor = WorkbenchSurface),
+                                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                                    border = BorderStroke(1.dp, WorkbenchBorder),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { copyToClipboard(formattedToken, item.label) }
+                                        .testTag("token_card_${item.token}")
+                                ) {
+                                    Column(modifier = Modifier.padding(14.dp)) {
                                         Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(horizontal = 10.dp, vertical = 8.dp),
+                                            modifier = Modifier.fillMaxWidth(),
                                             horizontalArrangement = Arrangement.SpaceBetween,
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
-                                            Text(
-                                                text = formattedToken,
-                                                fontFamily = FontFamily.Monospace,
-                                                fontWeight = FontWeight.Normal,
-                                                fontSize = 14.sp,
-                                                color = WorkbenchPrimary,
-                                                modifier = Modifier.weight(1f)
-                                            )
-
-                                            if (isJustCopied) {
-                                                Icon(
-                                                    imageVector = Icons.Default.Check,
-                                                    contentDescription = "Copied",
-                                                    tint = StatusDeployed,
-                                                    modifier = Modifier.size(16.dp)
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                modifier = Modifier.weight(1f, fill = false),
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                            ) {
+                                                Text(
+                                                    text = "${item.label}:",
+                                                    fontSize = 15.sp,
+                                                    fontFamily = FontFamily.SansSerif,
+                                                    fontWeight = FontWeight.Medium,
+                                                    color = WorkbenchTextPrimary
                                                 )
-                                            } else {
-                                                Icon(
-                                                    imageVector = Icons.Default.ContentCopy,
-                                                    contentDescription = "Copy",
-                                                    tint = WorkbenchTextSecondary,
-                                                    modifier = Modifier.size(15.dp)
+                                                Text(
+                                                    text = "($liveSample ${if (isLive) "[using live data]" else "[sample]"})",
+                                                    fontSize = 13.sp,
+                                                    fontFamily = FontFamily.SansSerif,
+                                                    fontWeight = FontWeight.Normal,
+                                                    color = WorkbenchPrimary,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
                                                 )
                                             }
+
+                                            Text(
+                                                text = item.category.displayName,
+                                                fontSize = 11.sp,
+                                                fontFamily = FontFamily.SansSerif,
+                                                color = WorkbenchTextSecondary,
+                                                modifier = Modifier.padding(start = 8.dp)
+                                            )
                                         }
+
+                                        Spacer(modifier = Modifier.height(8.dp))
+
+                                        Surface(
+                                            color = WorkbenchInset,
+                                            shape = RoundedCornerShape(6.dp),
+                                            border = BorderStroke(1.dp, WorkbenchBorder),
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clickable { copyToClipboard(formattedToken, item.label) }
+                                        ) {
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Text(
+                                                    text = formattedToken,
+                                                    fontFamily = FontFamily.Monospace,
+                                                    fontWeight = FontWeight.Normal,
+                                                    fontSize = 14.sp,
+                                                    color = WorkbenchPrimary,
+                                                    modifier = Modifier.weight(1f)
+                                                )
+
+                                                if (isJustCopied) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Check,
+                                                        contentDescription = "Copied",
+                                                        tint = StatusDeployed,
+                                                        modifier = Modifier.size(16.dp)
+                                                    )
+                                                } else {
+                                                    Icon(
+                                                        imageVector = Icons.Default.ContentCopy,
+                                                        contentDescription = "Copy",
+                                                        tint = WorkbenchTextSecondary,
+                                                        modifier = Modifier.size(15.dp)
+                                                    )
+                                                }
+                                            }
+                                        }
+
+                                        Spacer(modifier = Modifier.height(8.dp))
+
+                                        Text(
+                                            text = item.description,
+                                            fontSize = 12.sp,
+                                            fontFamily = FontFamily.SansSerif,
+                                            color = WorkbenchTextSecondary
+                                        )
                                     }
-
-                                    Spacer(modifier = Modifier.height(8.dp))
-
-                                    // Item 4: Description — 12sp, secondary text color
-                                    Text(
-                                        text = item.description,
-                                        fontSize = 12.sp,
-                                        fontFamily = FontFamily.SansSerif,
-                                        color = WorkbenchTextSecondary
-                                    )
                                 }
                             }
                         }

@@ -61,6 +61,18 @@ import com.example.ui.theme.WorkbenchTextMuted
 import com.example.ui.theme.WorkbenchTextPrimary
 import com.example.ui.theme.WorkbenchTextSecondary
 
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.ui.text.style.TextAlign
+
 @Composable
 fun StatusBadge(
     status: MacroStatus,
@@ -297,4 +309,177 @@ fun MacroCard(
         }
     }
 }
+
+@Composable
+fun SearchBar(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    placeholder: String,
+    modifier: Modifier = Modifier,
+    testTag: String = "search_bar_input"
+) {
+    OutlinedTextField(
+        value = query,
+        onValueChange = onQueryChange,
+        placeholder = {
+            Text(
+                text = placeholder,
+                color = WorkbenchTextMuted,
+                fontSize = 14.sp
+            )
+        },
+        leadingIcon = {
+            Icon(
+                imageVector = Icons.Default.Search,
+                contentDescription = "Search",
+                tint = WorkbenchTextMuted,
+                modifier = Modifier.size(18.dp)
+            )
+        },
+        trailingIcon = {
+            if (query.isNotEmpty()) {
+                IconButton(onClick = { onQueryChange("") }) {
+                    Icon(
+                        imageVector = Icons.Default.Clear,
+                        contentDescription = "Clear",
+                        tint = WorkbenchTextMuted,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+        },
+        singleLine = true,
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedContainerColor = WorkbenchSurface,
+            unfocusedContainerColor = WorkbenchSurface,
+            disabledContainerColor = WorkbenchSurface,
+            focusedBorderColor = WorkbenchPrimary,
+            unfocusedBorderColor = WorkbenchBorder,
+            focusedTextColor = WorkbenchTextPrimary,
+            unfocusedTextColor = WorkbenchTextPrimary
+        ),
+        shape = RoundedCornerShape(8.dp),
+        modifier = modifier
+            .fillMaxWidth()
+            .testTag(testTag)
+    )
+}
+
+@Composable
+fun FilterChipRow(
+    options: List<Pair<String, Boolean>>,
+    onSelect: (Int) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    LazyRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = modifier.fillMaxWidth()
+    ) {
+        items(options.size) { index ->
+            val (label, isSelected) = options[index]
+            FilterChip(
+                selected = isSelected,
+                onClick = { onSelect(index) },
+                label = {
+                    Text(
+                        text = label,
+                        fontSize = 12.sp,
+                        fontWeight = if (isSelected) FontWeight.Medium else FontWeight.Normal
+                    )
+                },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = WorkbenchPrimary.copy(alpha = 0.15f),
+                    selectedLabelColor = WorkbenchPrimary,
+                    containerColor = WorkbenchSurface,
+                    labelColor = WorkbenchTextSecondary
+                ),
+                border = FilterChipDefaults.filterChipBorder(
+                    enabled = true,
+                    selected = isSelected,
+                    borderColor = WorkbenchBorder,
+                    selectedBorderColor = WorkbenchPrimary
+                ),
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.testTag("filter_chip_$index")
+            )
+        }
+    }
+}
+
+@Composable
+fun EmptyStateView(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    description: String,
+    actionLabel: String? = null,
+    onAction: (() -> Unit)? = null,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(24.dp)
+            .testTag("empty_state_view")
+    ) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .size(56.dp)
+                .clip(CircleShape)
+                .background(WorkbenchInset)
+                .border(1.dp, WorkbenchBorder, CircleShape)
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = WorkbenchPrimary,
+                modifier = Modifier.size(28.dp)
+            )
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Text(
+            text = title,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = WorkbenchTextPrimary,
+            fontFamily = FontFamily.SansSerif,
+            textAlign = TextAlign.Center
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Text(
+            text = description,
+            fontSize = 13.sp,
+            color = WorkbenchTextSecondary,
+            fontFamily = FontFamily.SansSerif,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(horizontal = 16.dp)
+        )
+
+        if (!actionLabel.isNullOrBlank() && onAction != null) {
+            Spacer(modifier = Modifier.height(16.dp))
+            Button(
+                onClick = onAction,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = WorkbenchPrimary
+                ),
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier.testTag("empty_state_action_button")
+            ) {
+                Text(
+                    text = actionLabel,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = Color.White
+                )
+            }
+        }
+    }
+}
+
 

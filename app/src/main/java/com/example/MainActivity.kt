@@ -9,7 +9,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import com.example.ui.WorkshopApp
 import com.example.ui.theme.MyApplicationTheme
-import com.example.ui.theme.WorkbenchBg
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -18,8 +17,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             MyApplicationTheme {
                 Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = WorkbenchBg
+                    modifier = Modifier.fillMaxSize()
                 ) {
                     WorkshopApp()
                 }

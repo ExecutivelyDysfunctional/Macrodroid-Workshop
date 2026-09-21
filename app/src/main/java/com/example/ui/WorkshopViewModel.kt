@@ -48,6 +48,11 @@ class WorkshopViewModel(application: Application) : AndroidViewModel(application
     val presetSearchQuery = MutableStateFlow("")
     val presetSelectedTag = MutableStateFlow<String?>(null)
     val bracketStyle = MutableStateFlow(com.example.util.BracketStyle.CURLY)
+    val navigationLayout = MutableStateFlow(NavigationLayout.BOTTOM_BAR)
+
+    fun setNavigationLayout(layout: NavigationLayout) {
+        navigationLayout.value = layout
+    }
 
     fun toggleBracketStyle() {
         bracketStyle.value = if (bracketStyle.value == com.example.util.BracketStyle.CURLY) {
