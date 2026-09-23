@@ -56,6 +56,33 @@ enum class CombinationCategory(val displayName: String) {
     LOGS_WEBHOOKS("Logs & Webhooks")
 }
 
+data class TokenEvaluationDetail(
+    val tokenRaw: String,
+    val tokenKey: String,
+    val label: String,
+    val evaluatedValue: String,
+    val isLive: Boolean,
+    val isResolved: Boolean,
+    val category: MagicTextCategory
+)
+
+data class MagicTextEvaluationResult(
+    val originalText: String,
+    val evaluatedText: String,
+    val isLiveEvaluated: Boolean,
+    val detectedTokens: List<TokenEvaluationDetail>,
+    val resolvedCount: Int,
+    val unresolvedCount: Int
+)
+
+data class LivePreviewTemplate(
+    val title: String,
+    val description: String,
+    val template: String,
+    val category: MagicTextCategory,
+    val iconEmoji: String
+)
+
 data class EvaluatedTokenInfo(
     val rawName: String,
     val formattedName: String,
@@ -437,150 +464,415 @@ object MagicTextEvaluator {
         }
     }
 
+    val sampleLivePreviewTemplates = listOf(
+        LivePreviewTemplate(
+            title = "Device Status Banner",
+            description = "Complete system telemetry summary with battery and OS specs",
+            template = "⚡ [device_manufacturer] [device_model] (Android [android_version]) | Batt: [battery]% ([charging_status]) | Net: [network_type] ([wifi_ssid])",
+            category = MagicTextCategory.DEVICE,
+            iconEmoji = "📱"
+        ),
+        LivePreviewTemplate(
+            title = "Battery & Power Alert",
+            description = "Urgent power level notification with charger status and timestamp",
+            template = "⚠️ Battery Warning: [battery]% remaining ([power_source]). Triggered at [hour_12_pad]:[minute_pad] [am_pm] on [day_of_week].",
+            category = MagicTextCategory.BATTERY,
+            iconEmoji = "🔋"
+        ),
+        LivePreviewTemplate(
+            title = "GPS Geolocation Pin",
+            description = "Location coordinates with reverse geocoded street name",
+            template = "📍 Current Location: [geocoded_address] (Lat: [lat], Lon: [long], ±[location_accuracy]m) at speed [location_speed] km/h.",
+            category = MagicTextCategory.LOCATION,
+            iconEmoji = "📍"
+        ),
+        LivePreviewTemplate(
+            title = "Incoming SMS Auto-Reply",
+            description = "Dynamic personalized response to incoming text sender",
+            template = "Hello [sms_name], I received your text on [sms_number] at [hour_12]:[minute_pad] [am_pm]. I am currently busy and will get back to you soon!",
+            category = MagicTextCategory.PHONE_SMS,
+            iconEmoji = "💬"
+        ),
+        LivePreviewTemplate(
+            title = "Notification Auto-Forwarder",
+            description = "Package app name, title, and body text extraction",
+            template = "🔔 Alert from [not_app_name] ([not_package_name]): '[not_title]' -> '[not_text]'",
+            category = MagicTextCategory.NOTIFICATIONS,
+            iconEmoji = "🔔"
+        ),
+        LivePreviewTemplate(
+            title = "ISO System Audit Log",
+            description = "Clean ISO timestamped execution log line for automation auditing",
+            template = "[LOG] [date_year]-[date_month_pad]-[date_day_pad]T[hour_24_pad]:[minute_pad]:[second_pad]Z | Macro: [macro_name] | Uptime: [device_uptime_hours]h | IP: [ip_address]",
+            category = MagicTextCategory.DATE_TIME,
+            iconEmoji = "🕒"
+        ),
+        LivePreviewTemplate(
+            title = "Webhook JSON Payload",
+            description = "Structured JSON object populated with dynamic runtime variables",
+            template = """{"event":"trigger","macro":"[macro_name]","device":"[device_model]","battery":[battery],"timestamp":[system_time],"status":"ok"}""",
+            category = MagicTextCategory.VARIABLES,
+            iconEmoji = "🌐"
+        )
+    )
+
+    /**
+     * Resolves dictionary of all known tokens to their live evaluated values and metadata.
+     */
+    fun resolveTokenMap(context: Context? = null): Map<String, Triple<String, Boolean, MagicTextCategory>> {
+        val now = Date()
+        val dateMonthShort = SimpleDateFormat("MMM", Locale.getDefault()).format(now)
+        val dateMonthName = SimpleDateFormat("MMMM", Locale.getDefault()).format(now)
+        val dateMonthPad = SimpleDateFormat("MM", Locale.getDefault()).format(now)
+        val dateMonthNum = SimpleDateFormat("M", Locale.getDefault()).format(now)
+        val dateDay = SimpleDateFormat("d", Locale.getDefault()).format(now)
+        val dateDayPad = SimpleDateFormat("dd", Locale.getDefault()).format(now)
+        val dateYear = SimpleDateFormat("yyyy", Locale.getDefault()).format(now)
+        val dateYearShort = SimpleDateFormat("yy", Locale.getDefault()).format(now)
+        val dayOfWeek = SimpleDateFormat("EEEE", Locale.getDefault()).format(now)
+        val dayOfWeekNum = SimpleDateFormat("u", Locale.getDefault()).format(now)
+        val dayOfYear = SimpleDateFormat("D", Locale.getDefault()).format(now)
+        val hour24 = SimpleDateFormat("H", Locale.getDefault()).format(now)
+        val hour24Pad = SimpleDateFormat("HH", Locale.getDefault()).format(now)
+        val hour12 = SimpleDateFormat("h", Locale.getDefault()).format(now)
+        val hour12Pad = SimpleDateFormat("hh", Locale.getDefault()).format(now)
+        val minute = SimpleDateFormat("m", Locale.getDefault()).format(now)
+        val minutePad = SimpleDateFormat("mm", Locale.getDefault()).format(now)
+        val second = SimpleDateFormat("s", Locale.getDefault()).format(now)
+        val secondPad = SimpleDateFormat("ss", Locale.getDefault()).format(now)
+        val amPm = SimpleDateFormat("a", Locale.getDefault()).format(now).uppercase()
+        val epochMs = System.currentTimeMillis().toString()
+
+        var batteryPct = "85"
+        var batteryTemp = "28.5"
+        var batteryVoltage = "4120"
+        var batteryCurrent = "-350"
+        var chargingStatus = "Discharging"
+        var powerSource = "Battery Power"
+        var batteryHealth = "Good"
+        var isBatteryLive = false
+
+        if (context != null) {
+            try {
+                val batteryStatus = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+                val level = batteryStatus?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
+                val scale = batteryStatus?.getIntExtra(BatteryManager.EXTRA_SCALE, -1) ?: -1
+                if (level >= 0 && scale > 0) {
+                    batteryPct = ((level * 100) / scale).toString()
+                    isBatteryLive = true
+                }
+                val temp = batteryStatus?.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, -1) ?: -1
+                if (temp > 0) batteryTemp = String.format(Locale.US, "%.1f", temp / 10.0)
+                val volt = batteryStatus?.getIntExtra(BatteryManager.EXTRA_VOLTAGE, -1) ?: -1
+                if (volt > 0) batteryVoltage = volt.toString()
+
+                val status = batteryStatus?.getIntExtra(BatteryManager.EXTRA_STATUS, -1) ?: -1
+                chargingStatus = when (status) {
+                    BatteryManager.BATTERY_STATUS_CHARGING -> "Charging"
+                    BatteryManager.BATTERY_STATUS_DISCHARGING -> "Discharging"
+                    BatteryManager.BATTERY_STATUS_FULL -> "Full"
+                    BatteryManager.BATTERY_STATUS_NOT_CHARGING -> "Not Charging"
+                    else -> "Discharging"
+                }
+                val plug = batteryStatus?.getIntExtra(BatteryManager.EXTRA_PLUGGED, -1) ?: -1
+                powerSource = when (plug) {
+                    BatteryManager.BATTERY_PLUGGED_AC -> "AC Fast Charger"
+                    BatteryManager.BATTERY_PLUGGED_USB -> "USB Port"
+                    BatteryManager.BATTERY_PLUGGED_WIRELESS -> "Wireless Dock"
+                    else -> "Battery Power"
+                }
+                val health = batteryStatus?.getIntExtra(BatteryManager.EXTRA_HEALTH, -1) ?: -1
+                batteryHealth = when (health) {
+                    BatteryManager.BATTERY_HEALTH_GOOD -> "Good"
+                    BatteryManager.BATTERY_HEALTH_OVERHEAT -> "Overheat"
+                    BatteryManager.BATTERY_HEALTH_DEAD -> "Dead"
+                    BatteryManager.BATTERY_HEALTH_OVER_VOLTAGE -> "Over Voltage"
+                    else -> "Good"
+                }
+            } catch (_: Exception) {}
+        }
+
+        var clipboardValue = "https://macrodroid.com"
+        var isClipboardLive = false
+        if (context != null) {
+            try {
+                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+                val clip = clipboard?.primaryClip
+                if (clip != null && clip.itemCount > 0) {
+                    val text = clip.getItemAt(0).text?.toString()
+                    if (!text.isNullOrBlank()) {
+                        clipboardValue = text
+                        isClipboardLive = true
+                    }
+                }
+            } catch (_: Exception) {}
+        }
+
+        val deviceModel = Build.MODEL?.takeIf { it.isNotBlank() } ?: "Pixel 8 Pro"
+        val deviceMfg = Build.MANUFACTURER?.takeIf { it.isNotBlank() } ?: "Google"
+        val deviceBrand = Build.BRAND?.takeIf { it.isNotBlank() } ?: "google"
+        val androidVer = Build.VERSION.RELEASE?.takeIf { it.isNotBlank() } ?: "15"
+        val sdkVer = Build.VERSION.SDK_INT.toString()
+
+        return mapOf(
+            // Date & Time
+            "date_day" to Triple(dateDay, true, MagicTextCategory.DATE_TIME),
+            "date_day_pad" to Triple(dateDayPad, true, MagicTextCategory.DATE_TIME),
+            "date_month" to Triple(dateMonthNum, true, MagicTextCategory.DATE_TIME),
+            "date_month_pad" to Triple(dateMonthPad, true, MagicTextCategory.DATE_TIME),
+            "date_month_short" to Triple(dateMonthShort, true, MagicTextCategory.DATE_TIME),
+            "date_month_name" to Triple(dateMonthName, true, MagicTextCategory.DATE_TIME),
+            "date_year" to Triple(dateYear, true, MagicTextCategory.DATE_TIME),
+            "date_year_short" to Triple(dateYearShort, true, MagicTextCategory.DATE_TIME),
+            "day_of_week" to Triple(dayOfWeek, true, MagicTextCategory.DATE_TIME),
+            "day_of_week_num" to Triple(dayOfWeekNum, true, MagicTextCategory.DATE_TIME),
+            "day_of_year" to Triple(dayOfYear, true, MagicTextCategory.DATE_TIME),
+            "hour_24" to Triple(hour24, true, MagicTextCategory.DATE_TIME),
+            "hour_24_pad" to Triple(hour24Pad, true, MagicTextCategory.DATE_TIME),
+            "hour_12" to Triple(hour12, true, MagicTextCategory.DATE_TIME),
+            "hour_12_pad" to Triple(hour12Pad, true, MagicTextCategory.DATE_TIME),
+            "minute" to Triple(minute, true, MagicTextCategory.DATE_TIME),
+            "minute_pad" to Triple(minutePad, true, MagicTextCategory.DATE_TIME),
+            "second" to Triple(second, true, MagicTextCategory.DATE_TIME),
+            "second_pad" to Triple(secondPad, true, MagicTextCategory.DATE_TIME),
+            "am_pm" to Triple(amPm, true, MagicTextCategory.DATE_TIME),
+            "system_time" to Triple(epochMs, true, MagicTextCategory.DATE_TIME),
+            "stopwatch_time" to Triple("00:04:18", false, MagicTextCategory.DATE_TIME),
+            "last_macro_run_time" to Triple("14:32:00", false, MagicTextCategory.DATE_TIME),
+
+            // Battery & Power
+            "battery" to Triple(batteryPct, isBatteryLive, MagicTextCategory.BATTERY),
+            "battery_temp" to Triple(batteryTemp, isBatteryLive, MagicTextCategory.BATTERY),
+            "battery_voltage" to Triple(batteryVoltage, isBatteryLive, MagicTextCategory.BATTERY),
+            "battery_current" to Triple(batteryCurrent, false, MagicTextCategory.BATTERY),
+            "charging_status" to Triple(chargingStatus, isBatteryLive, MagicTextCategory.BATTERY),
+            "power_source" to Triple(powerSource, isBatteryLive, MagicTextCategory.BATTERY),
+            "battery_health" to Triple(batteryHealth, isBatteryLive, MagicTextCategory.BATTERY),
+            "screen_on_time" to Triple("2h 14m", false, MagicTextCategory.BATTERY),
+
+            // Device & System
+            "device_model" to Triple(deviceModel, true, MagicTextCategory.DEVICE),
+            "device_manufacturer" to Triple(deviceMfg, true, MagicTextCategory.DEVICE),
+            "device_brand" to Triple(deviceBrand, true, MagicTextCategory.DEVICE),
+            "device_name" to Triple("$deviceMfg's Phone", false, MagicTextCategory.DEVICE),
+            "android_version" to Triple(androidVer, true, MagicTextCategory.DEVICE),
+            "sdk_version" to Triple(sdkVer, true, MagicTextCategory.DEVICE),
+            "device_uptime_hours" to Triple("52", false, MagicTextCategory.DEVICE),
+            "device_uptime_mins" to Triple("3120", false, MagicTextCategory.DEVICE),
+            "clipboard" to Triple(clipboardValue, isClipboardLive, MagicTextCategory.DEVICE),
+            "screen_brightness" to Triple("180", false, MagicTextCategory.DEVICE),
+            "volume_media" to Triple("65", false, MagicTextCategory.DEVICE),
+            "volume_ring" to Triple("80", false, MagicTextCategory.DEVICE),
+            "volume_alarm" to Triple("90", false, MagicTextCategory.DEVICE),
+            "volume_notification" to Triple("70", false, MagicTextCategory.DEVICE),
+            "ringer_mode" to Triple("Normal", false, MagicTextCategory.DEVICE),
+            "torch_state" to Triple("Off", false, MagicTextCategory.DEVICE),
+
+            // Connectivity
+            "wifi_ssid" to Triple("Home_5GHz", false, MagicTextCategory.CONNECTIVITY),
+            "wifi_bssid" to Triple("a4:91:b1:c2:d3:e4", false, MagicTextCategory.CONNECTIVITY),
+            "wifi_link_speed" to Triple("866", false, MagicTextCategory.CONNECTIVITY),
+            "ip_address" to Triple("192.168.1.104", false, MagicTextCategory.CONNECTIVITY),
+            "bluetooth_device" to Triple("Pixel Buds Pro", false, MagicTextCategory.CONNECTIVITY),
+            "cell_operator" to Triple("T-Mobile", false, MagicTextCategory.CONNECTIVITY),
+            "cell_signal_strength" to Triple("4", false, MagicTextCategory.CONNECTIVITY),
+            "network_type" to Triple("Wi-Fi", false, MagicTextCategory.CONNECTIVITY),
+
+            // Notifications
+            "not_title" to Triple("Austin Grindy", false, MagicTextCategory.NOTIFICATIONS),
+            "not_text" to Triple("Let's review the automation sprint results!", false, MagicTextCategory.NOTIFICATIONS),
+            "not_app_name" to Triple("WhatsApp", false, MagicTextCategory.NOTIFICATIONS),
+            "not_package_name" to Triple("com.whatsapp", false, MagicTextCategory.NOTIFICATIONS),
+            "not_ticker" to Triple("New message from Austin", false, MagicTextCategory.NOTIFICATIONS),
+            "not_sub_text" to Triple("Work Channel", false, MagicTextCategory.NOTIFICATIONS),
+
+            // Phone & SMS
+            "call_name" to Triple("Austin Grindy", false, MagicTextCategory.PHONE_SMS),
+            "call_number" to Triple("+1 (555) 019-2834", false, MagicTextCategory.PHONE_SMS),
+            "call_duration" to Triple("142", false, MagicTextCategory.PHONE_SMS),
+            "sms_name" to Triple("John Doe", false, MagicTextCategory.PHONE_SMS),
+            "sms_number" to Triple("+1 555-0192", false, MagicTextCategory.PHONE_SMS),
+            "sms_body" to Triple("Meeting confirmed for 2:00 PM today.", false, MagicTextCategory.PHONE_SMS),
+            "sim_name" to Triple("SIM 1 (Primary)", false, MagicTextCategory.PHONE_SMS),
+
+            // Location & GPS
+            "lat" to Triple("37.7749", false, MagicTextCategory.LOCATION),
+            "long" to Triple("-122.4194", false, MagicTextCategory.LOCATION),
+            "location_accuracy" to Triple("8", false, MagicTextCategory.LOCATION),
+            "location_altitude" to Triple("16", false, MagicTextCategory.LOCATION),
+            "location_speed" to Triple("0", false, MagicTextCategory.LOCATION),
+            "location_bearing" to Triple("180", false, MagicTextCategory.LOCATION),
+            "geocoded_address" to Triple("Market St, San Francisco, CA", false, MagicTextCategory.LOCATION),
+
+            // Variables & Flow
+            "macro_name" to Triple("NightModeAuto", false, MagicTextCategory.VARIABLES),
+            "last_invoked_macro" to Triple("WifiConnectedTrigger", false, MagicTextCategory.VARIABLES)
+        )
+    }
+
+    /**
+     * Performs rich real-time evaluation with full token breakdown and categorization.
+     */
+    fun evaluateMagicTextDetailed(
+        template: String,
+        context: Context? = null
+    ): MagicTextEvaluationResult {
+        if (template.isBlank()) {
+            return MagicTextEvaluationResult(
+                originalText = template,
+                evaluatedText = "",
+                isLiveEvaluated = false,
+                detectedTokens = emptyList(),
+                resolvedCount = 0,
+                unresolvedCount = 0
+            )
+        }
+
+        val tokenMap = resolveTokenMap(context)
+        val tokenRegex = Regex("[\\[{]([^\\]}]+)[\\]}]")
+        val detectedTokens = mutableListOf<TokenEvaluationDetail>()
+        var overallIsLive = true
+        var resolvedCount = 0
+        var unresolvedCount = 0
+
+        val evaluatedText = tokenRegex.replace(template) { match ->
+            val rawToken = match.value
+            val innerKey = match.groupValues[1].trim()
+            val lowerKey = innerKey.lowercase()
+
+            val resolved = when {
+                tokenMap.containsKey(lowerKey) -> {
+                    val (evalVal, isLive, category) = tokenMap[lowerKey]!!
+                    val item = allMagicTextTokens.find { it.token.equals(lowerKey, ignoreCase = true) }
+                    val label = item?.label ?: deriveLabel(innerKey)
+                    resolvedCount++
+                    if (!isLive) overallIsLive = false
+                    val detail = TokenEvaluationDetail(
+                        tokenRaw = rawToken,
+                        tokenKey = innerKey,
+                        label = label,
+                        evaluatedValue = evalVal,
+                        isLive = isLive,
+                        isResolved = true,
+                        category = category
+                    )
+                    detectedTokens.add(detail)
+                    evalVal
+                }
+                lowerKey.startsWith("webhook_param=") -> {
+                    val paramName = innerKey.substringAfter("webhook_param=")
+                    resolvedCount++
+                    val detail = TokenEvaluationDetail(
+                        tokenRaw = rawToken,
+                        tokenKey = innerKey,
+                        label = "Webhook Parameter: $paramName",
+                        evaluatedValue = "sample_value",
+                        isLive = false,
+                        isResolved = true,
+                        category = MagicTextCategory.VARIABLES
+                    )
+                    detectedTokens.add(detail)
+                    "sample_value"
+                }
+                lowerKey.startsWith("lv=") -> {
+                    val varName = innerKey.substringAfter("lv=")
+                    resolvedCount++
+                    val detail = TokenEvaluationDetail(
+                        tokenRaw = rawToken,
+                        tokenKey = innerKey,
+                        label = "Local Variable: $varName",
+                        evaluatedValue = "true",
+                        isLive = false,
+                        isResolved = true,
+                        category = MagicTextCategory.VARIABLES
+                    )
+                    detectedTokens.add(detail)
+                    "true"
+                }
+                lowerKey.startsWith("gv=") -> {
+                    val varName = innerKey.substringAfter("gv=")
+                    resolvedCount++
+                    val detail = TokenEvaluationDetail(
+                        tokenRaw = rawToken,
+                        tokenKey = innerKey,
+                        label = "Global Variable: $varName",
+                        evaluatedValue = "Active",
+                        isLive = false,
+                        isResolved = true,
+                        category = MagicTextCategory.VARIABLES
+                    )
+                    detectedTokens.add(detail)
+                    "Active"
+                }
+                lowerKey.startsWith("random=") -> {
+                    val range = innerKey.substringAfter("random=")
+                    val parts = range.split("-")
+                    val randVal = if (parts.size == 2 && parts[0].toIntOrNull() != null && parts[1].toIntOrNull() != null) {
+                        val min = parts[0].toInt()
+                        val max = parts[1].toInt()
+                        if (max >= min) ((min..max).random()).toString() else "42"
+                    } else "42"
+                    resolvedCount++
+                    val detail = TokenEvaluationDetail(
+                        tokenRaw = rawToken,
+                        tokenKey = innerKey,
+                        label = "Random ($range)",
+                        evaluatedValue = randVal,
+                        isLive = false,
+                        isResolved = true,
+                        category = MagicTextCategory.VARIABLES
+                    )
+                    detectedTokens.add(detail)
+                    randVal
+                }
+                else -> {
+                    unresolvedCount++
+                    overallIsLive = false
+                    val detail = TokenEvaluationDetail(
+                        tokenRaw = rawToken,
+                        tokenKey = innerKey,
+                        label = "Unknown Variable",
+                        evaluatedValue = rawToken,
+                        isLive = false,
+                        isResolved = false,
+                        category = MagicTextCategory.VARIABLES
+                    )
+                    detectedTokens.add(detail)
+                    rawToken // keep unresolved as-is
+                }
+            }
+
+            resolved
+        }
+
+        return MagicTextEvaluationResult(
+            originalText = template,
+            evaluatedText = evaluatedText,
+            isLiveEvaluated = overallIsLive && detectedTokens.isNotEmpty() && unresolvedCount == 0,
+            detectedTokens = detectedTokens,
+            resolvedCount = resolvedCount,
+            unresolvedCount = unresolvedCount
+        )
+    }
+
     /**
      * Evaluates live or realistic sample data for given token string or combination template.
      */
     fun evaluateLiveSample(tokenTemplate: String, context: Context? = null): Pair<String, Boolean> {
-        val now = Date()
-        val lower = tokenTemplate.lowercase()
-
-        // 1. Check if it's a multi-token combination template
-        if (tokenTemplate.contains("[") || tokenTemplate.contains("{")) {
-            var isLiveEvaluated = true
-            var evaluatedString = tokenTemplate
-
-            // Replace known tokens with evaluated live values
-            val dateMonthShort = SimpleDateFormat("MMM", Locale.getDefault()).format(now)
-            val dateMonthName = SimpleDateFormat("MMMM", Locale.getDefault()).format(now)
-            val dateMonthPad = SimpleDateFormat("MM", Locale.getDefault()).format(now)
-            val dateMonthNum = SimpleDateFormat("M", Locale.getDefault()).format(now)
-            val dateDay = SimpleDateFormat("d", Locale.getDefault()).format(now)
-            val dateDayPad = SimpleDateFormat("dd", Locale.getDefault()).format(now)
-            val dateYear = SimpleDateFormat("yyyy", Locale.getDefault()).format(now)
-            val dateYearShort = SimpleDateFormat("yy", Locale.getDefault()).format(now)
-            val dayOfWeek = SimpleDateFormat("EEEE", Locale.getDefault()).format(now)
-            val hour24 = SimpleDateFormat("H", Locale.getDefault()).format(now)
-            val hour24Pad = SimpleDateFormat("HH", Locale.getDefault()).format(now)
-            val hour12 = SimpleDateFormat("h", Locale.getDefault()).format(now)
-            val hour12Pad = SimpleDateFormat("hh", Locale.getDefault()).format(now)
-            val minute = SimpleDateFormat("m", Locale.getDefault()).format(now)
-            val minutePad = SimpleDateFormat("mm", Locale.getDefault()).format(now)
-            val second = SimpleDateFormat("s", Locale.getDefault()).format(now)
-            val secondPad = SimpleDateFormat("ss", Locale.getDefault()).format(now)
-            val amPm = SimpleDateFormat("a", Locale.getDefault()).format(now).uppercase()
-
-            // Battery resolution
-            var batteryPct = "85"
-            var chargingStatus = "Charging"
-            var powerSource = "AC Charger"
-            if (context != null) {
-                try {
-                    val batteryStatus = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
-                    val level = batteryStatus?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
-                    val scale = batteryStatus?.getIntExtra(BatteryManager.EXTRA_SCALE, -1) ?: -1
-                    if (level >= 0 && scale > 0) {
-                        batteryPct = ((level * 100) / scale).toString()
-                    }
-                    val status = batteryStatus?.getIntExtra(BatteryManager.EXTRA_STATUS, -1) ?: -1
-                    chargingStatus = when (status) {
-                        BatteryManager.BATTERY_STATUS_CHARGING -> "Charging"
-                        BatteryManager.BATTERY_STATUS_DISCHARGING -> "Discharging"
-                        BatteryManager.BATTERY_STATUS_FULL -> "Full"
-                        BatteryManager.BATTERY_STATUS_NOT_CHARGING -> "Not Charging"
-                        else -> "Discharging"
-                    }
-                    val chargePlug = batteryStatus?.getIntExtra(BatteryManager.EXTRA_PLUGGED, -1) ?: -1
-                    powerSource = when (chargePlug) {
-                        BatteryManager.BATTERY_PLUGGED_AC -> "AC Fast Charger"
-                        BatteryManager.BATTERY_PLUGGED_USB -> "USB Port"
-                        BatteryManager.BATTERY_PLUGGED_WIRELESS -> "Wireless Dock"
-                        else -> "Battery Power"
-                    }
-                } catch (_: Exception) {}
-            }
-
-            // Device resolution
-            val deviceModel = Build.MODEL ?: "Pixel 8 Pro"
-            val deviceMfg = Build.MANUFACTURER ?: "Google"
-            val androidVer = Build.VERSION.RELEASE ?: "15"
-            val sdkVer = Build.VERSION.SDK_INT.toString()
-
-            // Replacement dictionary
-            val map = mapOf(
-                "date_month_short" to dateMonthShort,
-                "date_month_name" to dateMonthName,
-                "date_month_pad" to dateMonthPad,
-                "date_month" to dateMonthNum,
-                "date_day_pad" to dateDayPad,
-                "date_day" to dateDay,
-                "date_year_short" to dateYearShort,
-                "date_year" to dateYear,
-                "day_of_week" to dayOfWeek,
-                "hour_24_pad" to hour24Pad,
-                "hour_24" to hour24,
-                "hour_12_pad" to hour12Pad,
-                "hour_12" to hour12,
-                "minute_pad" to minutePad,
-                "minute" to minute,
-                "second_pad" to secondPad,
-                "second" to second,
-                "am_pm" to amPm,
-                "battery" to batteryPct,
-                "battery_temp" to "28.5",
-                "battery_voltage" to "4120",
-                "charging_status" to chargingStatus,
-                "power_source" to powerSource,
-                "device_model" to deviceModel,
-                "device_manufacturer" to deviceMfg,
-                "android_version" to androidVer,
-                "sdk_version" to sdkVer,
-                "wifi_ssid" to "Home_5GHz",
-                "ip_address" to "192.168.1.104",
-                "network_type" to "Wi-Fi",
-                "lat" to "37.7749",
-                "long" to "-122.4194",
-                "location_accuracy" to "12",
-                "geocoded_address" to "Market St, San Francisco, CA",
-                "not_app_name" to "WhatsApp",
-                "not_title" to "Austin",
-                "not_text" to "Hey, are you free?",
-                "sms_name" to "John",
-                "sms_number" to "+1 555-0192",
-                "sms_body" to "Meeting is confirmed for 2 PM",
-                "call_name" to "Austin Grindy",
-                "call_number" to "+1 (555) 019-2834",
-                "volume_media" to "65",
-                "volume_ring" to "80",
-                "ringer_mode" to "Normal",
-                "macro_name" to "AutoBackup",
-                "device_uptime_hours" to "48"
-            )
-
-            val tokenRegex = Regex("[\\[{]([^\\]}]+)[\\]}]")
-            var matchedAny = false
-            evaluatedString = tokenRegex.replace(evaluatedString) { match ->
-                val key = match.groupValues[1].lowercase().trim()
-                if (map.containsKey(key)) {
-                    matchedAny = true
-                    map[key]!!
-                } else if (key.startsWith("webhook_param")) {
-                    matchedAny = true
-                    "42"
-                } else if (key.startsWith("random")) {
-                    matchedAny = true
-                    "73"
-                } else {
-                    isLiveEvaluated = false
-                    match.value
-                }
-            }
-
-            if (matchedAny) {
-                return Pair(evaluatedString, isLiveEvaluated)
-            }
+        val result = evaluateMagicTextDetailed(tokenTemplate, context)
+        if (result.detectedTokens.isNotEmpty()) {
+            return Pair(result.evaluatedText, result.isLiveEvaluated)
         }
 
-        // 2. Single Atomic Token Evaluations
+        // Fallback for raw non-bracketed tokens or search strings
+        val lower = tokenTemplate.lowercase().trim()
+        val tokenMap = resolveTokenMap(context)
+        if (tokenMap.containsKey(lower)) {
+            val (valStr, isLive, _) = tokenMap[lower]!!
+            return Pair(valStr, isLive)
+        }
+
+        val now = Date()
         if (lower.contains("date_month_short") || (lower.contains("date") && lower.contains("year")) || lower.contains("jan")) {
             val sdf = SimpleDateFormat("MMM d, yyyy", Locale.getDefault())
             return Pair(sdf.format(now), true)
@@ -600,63 +892,6 @@ object MagicTextEvaluator {
         if (lower.contains("hour_12") || lower.contains("am_pm")) {
             val sdf = SimpleDateFormat("hh:mm a", Locale.getDefault())
             return Pair(sdf.format(now), true)
-        }
-        if (lower.contains("battery")) {
-            if (context != null) {
-                try {
-                    val batteryStatus = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
-                    val level = batteryStatus?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
-                    val scale = batteryStatus?.getIntExtra(BatteryManager.EXTRA_SCALE, -1) ?: -1
-                    if (level >= 0 && scale > 0) {
-                        val pct = (level * 100) / scale
-                        return Pair("$pct%", true)
-                    }
-                } catch (_: Exception) {}
-            }
-            return Pair("85%", false)
-        }
-        if (lower.contains("device_model") || lower.contains("model")) {
-            val model = Build.MODEL
-            return if (!model.isNullOrBlank()) Pair(model, true) else Pair("Pixel 8 Pro", false)
-        }
-        if (lower.contains("device_manufacturer") || lower.contains("manufacturer")) {
-            val mfg = Build.MANUFACTURER
-            return if (!mfg.isNullOrBlank()) Pair(mfg, true) else Pair("Google", false)
-        }
-        if (lower.contains("android_version")) {
-            val v = Build.VERSION.RELEASE
-            return if (!v.isNullOrBlank()) Pair("Android $v", true) else Pair("Android 15", false)
-        }
-        if (lower.contains("clipboard")) {
-            if (context != null) {
-                try {
-                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
-                    val clip = clipboard?.primaryClip
-                    if (clip != null && clip.itemCount > 0) {
-                        val text = clip.getItemAt(0).text?.toString()
-                        if (!text.isNullOrBlank()) {
-                            val cleanText = if (text.length > 25) text.take(22) + "..." else text
-                            return Pair("\"$cleanText\"", true)
-                        }
-                    }
-                } catch (_: Exception) {}
-            }
-            return Pair("\"https://macrodroid.com\"", false)
-        }
-        if (lower.contains("wifi") || lower.contains("ssid")) {
-            return Pair("Studio_5GHz", false)
-        }
-        if (lower.contains("call_name") || lower.contains("caller")) {
-            return Pair("Austin Grindy", false)
-        }
-        if (lower.contains("sms_body")) {
-            return Pair("\"Your verification code is 48291\"", false)
-        }
-        if (lower.contains("not_title") || lower.contains("not_text")) {
-            return Pair("Slack: Project sprint review at 10 AM", false)
-        }
-        if (lower.contains("lat") && lower.contains("long")) {
-            return Pair("37.7749, -122.4194", false)
         }
 
         return Pair("Live Evaluated Output", false)

@@ -79,6 +79,7 @@ import com.example.data.models.Preset
 import com.example.ui.WorkshopViewModel
 import com.example.ui.components.CustomDateTimeBuilder
 import com.example.ui.components.EmptyStateView
+import com.example.ui.components.MagicTextLivePreviewCard
 import com.example.ui.components.SearchBar
 import com.example.ui.components.TagPill
 import com.example.ui.theme.BlockingWarningText
@@ -103,7 +104,8 @@ import kotlinx.coroutines.delay
 
 enum class MagicTextTab {
     ALL_TOKENS,
-    COMBINATIONS
+    COMBINATIONS,
+    LIVE_PREVIEW
 }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -210,17 +212,17 @@ fun PresetsScreen(
                 }
             }
 
-            // Segmented Primary Library Tabs: "All Magic Text" vs "Combinations"
+            // Segmented Primary Library Tabs: "All Magic Text" vs "Combinations" vs "Live Preview"
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 val isAllTokensActive = activeTab == MagicTextTab.ALL_TOKENS
                 Surface(
                     color = if (isAllTokensActive) WorkbenchPrimary else Color.Transparent,
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(14.dp),
                     border = BorderStroke(1.dp, if (isAllTokensActive) WorkbenchPrimary else WorkbenchBorder),
                     modifier = Modifier
                         .weight(1f)
@@ -228,7 +230,7 @@ fun PresetsScreen(
                         .testTag("tab_all_magic_text")
                 ) {
                     Row(
-                        modifier = Modifier.padding(vertical = 8.dp, horizontal = 12.dp),
+                        modifier = Modifier.padding(vertical = 8.dp, horizontal = 8.dp),
                         horizontalArrangement = Arrangement.Center,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -236,12 +238,12 @@ fun PresetsScreen(
                             imageVector = Icons.Default.LibraryBooks,
                             contentDescription = null,
                             tint = if (isAllTokensActive) WorkbenchOnPrimary else WorkbenchTextSecondary,
-                            modifier = Modifier.size(15.dp)
+                            modifier = Modifier.size(14.dp)
                         )
-                        Spacer(modifier = Modifier.width(6.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = "All Tokens (${MagicTextEvaluator.allMagicTextTokens.size})",
-                            fontSize = 12.sp,
+                            text = "Tokens (${MagicTextEvaluator.allMagicTextTokens.size})",
+                            fontSize = 11.sp,
                             fontFamily = FontFamily.SansSerif,
                             fontWeight = if (isAllTokensActive) FontWeight.SemiBold else FontWeight.Normal,
                             color = if (isAllTokensActive) WorkbenchOnPrimary else WorkbenchTextSecondary
@@ -253,7 +255,7 @@ fun PresetsScreen(
                 val totalCombos = MagicTextEvaluator.commonCombinations.size + userPresets.size
                 Surface(
                     color = if (isComboActive) WorkbenchPrimary else Color.Transparent,
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(14.dp),
                     border = BorderStroke(1.dp, if (isComboActive) WorkbenchPrimary else WorkbenchBorder),
                     modifier = Modifier
                         .weight(1f)
@@ -261,23 +263,55 @@ fun PresetsScreen(
                         .testTag("tab_combinations")
                 ) {
                     Row(
-                        modifier = Modifier.padding(vertical = 8.dp, horizontal = 12.dp),
+                        modifier = Modifier.padding(vertical = 8.dp, horizontal = 8.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Code,
+                            contentDescription = null,
+                            tint = if (isComboActive) WorkbenchOnPrimary else WorkbenchTextSecondary,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "Combos ($totalCombos)",
+                            fontSize = 11.sp,
+                            fontFamily = FontFamily.SansSerif,
+                            fontWeight = if (isComboActive) FontWeight.SemiBold else FontWeight.Normal,
+                            color = if (isComboActive) WorkbenchOnPrimary else WorkbenchTextSecondary
+                        )
+                    }
+                }
+
+                val isLivePreviewActive = activeTab == MagicTextTab.LIVE_PREVIEW
+                Surface(
+                    color = if (isLivePreviewActive) WorkbenchPrimary else Color.Transparent,
+                    shape = RoundedCornerShape(14.dp),
+                    border = BorderStroke(1.dp, if (isLivePreviewActive) WorkbenchPrimary else WorkbenchBorder),
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { activeTab = MagicTextTab.LIVE_PREVIEW }
+                        .testTag("tab_live_preview")
+                ) {
+                    Row(
+                        modifier = Modifier.padding(vertical = 8.dp, horizontal = 8.dp),
                         horizontalArrangement = Arrangement.Center,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
                             imageVector = Icons.Default.AutoAwesome,
                             contentDescription = null,
-                            tint = if (isComboActive) WorkbenchOnPrimary else WorkbenchTextSecondary,
-                            modifier = Modifier.size(15.dp)
+                            tint = if (isLivePreviewActive) WorkbenchOnPrimary else WorkbenchTextSecondary,
+                            modifier = Modifier.size(14.dp)
                         )
-                        Spacer(modifier = Modifier.width(6.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = "Combinations ($totalCombos)",
-                            fontSize = 12.sp,
+                            text = "Live Preview",
+                            fontSize = 11.sp,
                             fontFamily = FontFamily.SansSerif,
-                            fontWeight = if (isComboActive) FontWeight.SemiBold else FontWeight.Normal,
-                            color = if (isComboActive) WorkbenchOnPrimary else WorkbenchTextSecondary
+                            fontWeight = if (isLivePreviewActive) FontWeight.SemiBold else FontWeight.Normal,
+                            color = if (isLivePreviewActive) WorkbenchOnPrimary else WorkbenchTextSecondary
                         )
                     }
                 }
@@ -285,80 +319,83 @@ fun PresetsScreen(
 
             Spacer(modifier = Modifier.height(6.dp))
 
-            // Search Bar
-            SearchBar(
-                query = searchQuery,
-                onQueryChange = { searchQuery = it },
-                placeholder = if (activeTab == MagicTextTab.ALL_TOKENS)
-                    "Search tokens (e.g. date, battery, wifi)..."
-                else
-                    "Search combinations (e.g. timestamp, full date)...",
-                modifier = Modifier.padding(horizontal = 16.dp),
-                testTag = "magic_text_search_input"
-            )
+            // Search & Category Filters (shown for Tokens & Combos tabs)
+            if (activeTab != MagicTextTab.LIVE_PREVIEW) {
+                // Search Bar
+                SearchBar(
+                    query = searchQuery,
+                    onQueryChange = { searchQuery = it },
+                    placeholder = if (activeTab == MagicTextTab.ALL_TOKENS)
+                        "Search tokens (e.g. date, battery, wifi)..."
+                    else
+                        "Search combinations (e.g. timestamp, full date)...",
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    testTag = "magic_text_search_input"
+                )
 
-            Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
-            // Category Filter Pills: Active solid #5B8DEF with dark text, Inactive transparent with 1px border and muted text
-            if (activeTab == MagicTextTab.ALL_TOKENS) {
-                LazyRow(
-                    contentPadding = PaddingValues(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    items(MagicTextCategory.values()) { cat ->
-                        val isSelected = selectedTokenCategory == cat
-                        Surface(
-                            color = if (isSelected) WorkbenchPrimary else Color.Transparent,
-                            shape = RoundedCornerShape(16.dp),
-                            border = BorderStroke(
-                                1.dp,
-                                if (isSelected) WorkbenchPrimary else WorkbenchBorder
-                            ),
-                            modifier = Modifier.clickable { selectedTokenCategory = cat }
-                        ) {
-                            Text(
-                                text = cat.displayName,
-                                fontSize = 12.sp,
-                                fontFamily = FontFamily.SansSerif,
-                                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                                color = if (isSelected) WorkbenchOnPrimary else WorkbenchTextSecondary,
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
-                            )
+                // Category Filter Pills
+                if (activeTab == MagicTextTab.ALL_TOKENS) {
+                    LazyRow(
+                        contentPadding = PaddingValues(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        items(MagicTextCategory.values()) { cat ->
+                            val isSelected = selectedTokenCategory == cat
+                            Surface(
+                                color = if (isSelected) WorkbenchPrimary else Color.Transparent,
+                                shape = RoundedCornerShape(16.dp),
+                                border = BorderStroke(
+                                    1.dp,
+                                    if (isSelected) WorkbenchPrimary else WorkbenchBorder
+                                ),
+                                modifier = Modifier.clickable { selectedTokenCategory = cat }
+                            ) {
+                                Text(
+                                    text = cat.displayName,
+                                    fontSize = 12.sp,
+                                    fontFamily = FontFamily.SansSerif,
+                                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                                    color = if (isSelected) WorkbenchOnPrimary else WorkbenchTextSecondary,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                                )
+                            }
+                        }
+                    }
+                } else if (activeTab == MagicTextTab.COMBINATIONS) {
+                    LazyRow(
+                        contentPadding = PaddingValues(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        items(CombinationCategory.values()) { cat ->
+                            val isSelected = selectedComboCategory == cat
+                            Surface(
+                                color = if (isSelected) WorkbenchPrimary else Color.Transparent,
+                                shape = RoundedCornerShape(16.dp),
+                                border = BorderStroke(
+                                    1.dp,
+                                    if (isSelected) WorkbenchPrimary else WorkbenchBorder
+                                ),
+                                modifier = Modifier.clickable { selectedComboCategory = cat }
+                            ) {
+                                Text(
+                                    text = cat.displayName,
+                                    fontSize = 12.sp,
+                                    fontFamily = FontFamily.SansSerif,
+                                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                                    color = if (isSelected) WorkbenchOnPrimary else WorkbenchTextSecondary,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                                )
+                            }
                         }
                     }
                 }
-            } else {
-                LazyRow(
-                    contentPadding = PaddingValues(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    items(CombinationCategory.values()) { cat ->
-                        val isSelected = selectedComboCategory == cat
-                        Surface(
-                            color = if (isSelected) WorkbenchPrimary else Color.Transparent,
-                            shape = RoundedCornerShape(16.dp),
-                            border = BorderStroke(
-                                1.dp,
-                                if (isSelected) WorkbenchPrimary else WorkbenchBorder
-                            ),
-                            modifier = Modifier.clickable { selectedComboCategory = cat }
-                        ) {
-                            Text(
-                                text = cat.displayName,
-                                fontSize = 12.sp,
-                                fontFamily = FontFamily.SansSerif,
-                                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                                color = if (isSelected) WorkbenchOnPrimary else WorkbenchTextSecondary,
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
-                            )
-                        }
-                    }
-                }
+
+                Spacer(modifier = Modifier.height(10.dp))
             }
-
-            Spacer(modifier = Modifier.height(10.dp))
 
             // TAB 1: ALL MAGIC TEXT TOKENS
             if (activeTab == MagicTextTab.ALL_TOKENS) {
@@ -656,7 +693,7 @@ fun PresetsScreen(
             }
 
             // TAB 2: COMBINATIONS & FORMULAS
-            else {
+            else if (activeTab == MagicTextTab.COMBINATIONS) {
                 val filteredBuiltinCombos = remember(searchQuery, selectedComboCategory, bracketStyle) {
                     MagicTextEvaluator.commonCombinations.filter { combo ->
                         val matchesCategory = selectedComboCategory == CombinationCategory.ALL || combo.category == selectedComboCategory
@@ -1063,6 +1100,99 @@ fun PresetsScreen(
                         }
                     }
                 }
+            } else if (activeTab == MagicTextTab.LIVE_PREVIEW) {
+                // TAB 3: LIVE PREVIEW & EVALUATION LAB
+                LazyColumn(
+                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 80.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    item {
+                        MagicTextLivePreviewCard(
+                            bracketStyle = bracketStyle,
+                            onSavePreset = { name, content, tags ->
+                                val newPreset = Preset(
+                                    id = 0L,
+                                    name = name,
+                                    content = content,
+                                    tags = tags,
+                                    createdAt = System.currentTimeMillis()
+                                )
+                                viewModel.savePreset(newPreset) {
+                                    Toast.makeText(context, "Saved formula to presets library!", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        )
+                    }
+
+                    // Section: Quick-test from saved library presets
+                    if (userPresets.isNotEmpty()) {
+                        item {
+                            Text(
+                                text = "SAVED LIBRARY PRESETS (${userPresets.size})",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = WorkbenchTextSecondary,
+                                modifier = Modifier.padding(top = 8.dp)
+                            )
+                        }
+
+                        items(userPresets, key = { "live_user_${it.id}" }) { preset ->
+                            val (evaluatedText, isLive) = remember(preset.name, bracketStyle) {
+                                MagicTextEvaluator.evaluateLiveSample(preset.name, context)
+                            }
+                            Card(
+                                shape = RoundedCornerShape(8.dp),
+                                colors = CardDefaults.cardColors(containerColor = WorkbenchSurface),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                                border = BorderStroke(1.dp, WorkbenchBorder),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        copyToClipboard(bracketStyle.formatTemplate(preset.name), preset.name)
+                                    }
+                            ) {
+                                Column(modifier = Modifier.padding(12.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = preset.name,
+                                            fontFamily = FontFamily.Monospace,
+                                            fontWeight = FontWeight.Medium,
+                                            fontSize = 13.sp,
+                                            color = WorkbenchPrimary
+                                        )
+                                        Text(
+                                            text = if (isLive) "LIVE DATA" else "SAMPLE",
+                                            fontSize = 10.sp,
+                                            fontFamily = FontFamily.SansSerif,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = if (isLive) StatusDeployed else WorkbenchTextSecondary
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = "Evaluates to: $evaluatedText",
+                                        fontSize = 12.sp,
+                                        fontFamily = FontFamily.SansSerif,
+                                        color = WorkbenchTextPrimary
+                                    )
+                                    if (preset.content.isNotBlank()) {
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Text(
+                                            text = preset.content,
+                                            fontSize = 11.sp,
+                                            fontFamily = FontFamily.SansSerif,
+                                            color = WorkbenchTextSecondary
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -1400,6 +1530,48 @@ fun PresetsScreen(
                         shape = RoundedCornerShape(8.dp),
                         modifier = Modifier.fillMaxWidth()
                     )
+
+                    // Live evaluation preview for the formula entered
+                    if (tokenName.isNotBlank()) {
+                        val evalResult = remember(tokenName) {
+                            MagicTextEvaluator.evaluateMagicTextDetailed(tokenName, context)
+                        }
+                        Surface(
+                            color = WorkbenchSurfaceElevated,
+                            shape = RoundedCornerShape(8.dp),
+                            border = BorderStroke(1.dp, if (evalResult.unresolvedCount > 0) BlockingWarningText.copy(alpha = 0.4f) else WorkbenchPrimary.copy(alpha = 0.4f)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(10.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "LIVE EVALUATED OUTPUT",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontSize = 10.sp,
+                                        color = WorkbenchPrimary
+                                    )
+                                    Text(
+                                        text = "${evalResult.detectedTokens.size} token${if (evalResult.detectedTokens.size == 1) "" else "s"}",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontSize = 10.sp,
+                                        color = WorkbenchTextSecondary
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = evalResult.evaluatedText.ifEmpty { "(empty output)" },
+                                    fontSize = 13.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                    fontWeight = FontWeight.Medium,
+                                    color = WorkbenchTextPrimary
+                                )
+                            }
+                        }
+                    }
 
                     OutlinedTextField(
                         value = tokenContent,

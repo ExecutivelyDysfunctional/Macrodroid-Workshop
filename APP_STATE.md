@@ -1,6 +1,10 @@
 # APP_STATE.md
 
 ## [Implemented]
+- **Automated Debug APK Workflow**:
+  - Added GitHub Actions workflow (`.github/workflows/build-debug-apk.yml`) triggered on push/PR/manual dispatch to assemble and upload `app-debug.apk` as an artifact.
+  - Added local helper build script (`scripts/build-debug-apk.sh`).
+  - Documented build process in `README.md`.
 - **Fixed Build & Dependency Resolution Errors**:
   - Restored `gradle/libs.versions.toml` with version catalog entries.
   - Enabled `android.useAndroidX=true` in `gradle.properties`.

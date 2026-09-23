@@ -93,6 +93,7 @@ import com.example.data.models.Webhook
 import com.example.data.models.WebhookDirection
 import com.example.ui.WorkshopViewModel
 import com.example.ui.components.BlockingIssueAlert
+import com.example.ui.components.MagicTextLivePreviewCard
 import com.example.ui.components.StatusBadge
 import com.example.ui.components.TriggerBadge
 import com.example.ui.theme.BlockingWarningBg
@@ -153,6 +154,7 @@ fun MacroDetailScreen(
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showPresetPickerSheet by remember { mutableStateOf(false) }
     var showWebhookPickerSheet by remember { mutableStateOf(false) }
+    var showLivePreviewTester by remember { mutableStateOf(false) }
     var triggerDropdownExpanded by remember { mutableStateOf(false) }
     var statusDropdownExpanded by remember { mutableStateOf(false) }
 
@@ -715,6 +717,24 @@ fun MacroDetailScreen(
                     }
                 }
             }
+
+            // Magic Text Real-Time Output Previewer & Lab
+            MagicTextLivePreviewCard(
+                bracketStyle = bracketStyle,
+                onSavePreset = { name, content, tags ->
+                    val newPreset = Preset(
+                        id = 0L,
+                        name = name,
+                        content = content,
+                        tags = tags,
+                        createdAt = System.currentTimeMillis()
+                    )
+                    viewModel.savePreset(newPreset) {
+                        Toast.makeText(context, "Saved formula to Magic Text library!", Toast.LENGTH_SHORT).show()
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
+            )
 
             // Linked Webhooks
             Card(
