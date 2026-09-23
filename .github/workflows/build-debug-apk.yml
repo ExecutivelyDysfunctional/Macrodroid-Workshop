@@ -2,42 +2,74 @@ name: Build Debug APK
 
 on:
   push:
-    branches: [ "main", "master", "develop" ]
+    branches:
+      - main
+      - master
+      - develop
   pull_request:
-    branches: [ "main", "master" ]
+    branches:
+      - main
+      - master
+      - develop
   workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-debug-apk-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build-debug-apk:
-    name: Build & Artifact Debug APK
+    name: Build and upload debug APK
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     steps:
-      - name: Checkout Code
+      - name: Check out source
         uses: actions/checkout@v4
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
-          java-version: '17'
-          distribution: 'temurin'
+          distribution: temurin
+          java-version: "17"
 
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
 
-      - name: Build Debug APK
+      - name: Verify Gradle wrapper
         run: |
-          if [ -f "./gradlew" ]; then
-            chmod +x ./gradlew
-            ./gradlew assembleDebug
+          test -f ./gradlew
+          test -f ./gradle/wrapper/gradle-wrapper.properties
+          chmod +x ./gradlew
+
+      - name: Create CI debug keystore
+        run: |
+          if [ -f "$GITHUB_WORKSPACE/debug.keystore.base64" ]; then
+            base64 -d "$GITHUB_WORKSPACE/debug.keystore.base64" > "$GITHUB_WORKSPACE/debug.keystore"
           else
-            gradle assembleDebug
+            keytool -genkeypair \
+              -v \
+              -keystore "$GITHUB_WORKSPACE/debug.keystore" \
+              -storepass android \
+              -alias androiddebugkey \
+              -keypass android \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -dname "CN=Android Debug,O=Android,C=US"
           fi
 
-      - name: Upload Debug APK
+      - name: Build debug APK
+        run: ./gradlew --no-daemon --stacktrace assembleDebug
+
+      - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: app-debug-apk
+          name: app-debug-apk-${{ github.sha }}
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 30
+
